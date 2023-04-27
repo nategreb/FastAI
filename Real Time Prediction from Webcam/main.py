@@ -1,5 +1,6 @@
 # Get a reference to webcam
 import cv2
+from mtcnn import MTCNN
 
 
 def main():
@@ -10,12 +11,23 @@ def main():
     if not video_capture.isOpened():
         raise Exception("Error: Camera could not be opened.")
 
+    detector = MTCNN()
+
     try:
         while video_capture.isOpened():
             # capture each frame of the video
             ret, frame = video_capture.read()
 
+            # if the frame is read successfully, process and display it
             if ret:
+                # detect faces using MTCNN model
+                faces = detector.detect_faces(frame)
+
+                # Draw bounding boxes around detected faces
+                for face in faces:
+                    x, y, width, height = face['box']
+                    cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 0, 0), 2)
+
                 # display the frame
                 cv2.imshow('Camera Feed', frame)
 
@@ -24,7 +36,9 @@ def main():
                     break
 
             else:
+                print("Error: frame couldn\'t be read")
                 break
+
     except KeyboardInterrupt:
         print("Interrupted by user. Exiting...")
 
