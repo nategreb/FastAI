@@ -1,18 +1,28 @@
+from time import sleep
+
+import numpy as np
 import cv2
 import dlib
+from fastai.vision.all import *
+import torch
+import torchvision.models as models
+import torchvision.transforms as transforms
 
 
-def main():
+if __name__ == "__main__":
     # Create a VideoCapture object to capture the video from the camera
     cap = cv2.VideoCapture(0)
 
     # Check if the camera is opened successfully
     if not cap.isOpened():
         print("Error: Camera could not be opened.")
-        return
+        exit()
 
     # Initialize the Dlib face detector
     detector = dlib.get_frontal_face_detector()
+
+    # Load the pretrained gender classification model
+    gender_classifier = load_learner('./models/trained_gender_resnet26d.pkl')
 
     try:
         # Loop to display the camera feed with face bounding boxes
@@ -30,8 +40,23 @@ def main():
                     x, y, width, height = face.left(), face.top(), face.width(), face.height()
                     cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 0, 0), 2)
 
+                    # Extract the face and resize it to the size expected by the gender classifier - 192x192
+                    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (192, 192))
+
+                    # transform cropped_face to tensor
+                    tensor = torch.tensor(cropped_face)
+                    # predict gender
+                    gender, _, _ = gender_classifier.predict(tensor)
+
+                    # Display the gender label above the bounding box
+                    cv2.putText(frame, gender, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+
                 # Display the processed frame
                 cv2.imshow('Camera Feed', frame)
+
+                # CPU is slow
+                if not torch.cuda.is_available():
+                    sleep(1)
 
                 # Break the loop if 'q' is pressed
                 if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -46,7 +71,3 @@ def main():
         # Release the VideoCapture object and close all windows
         cap.release()
         cv2.destroyAllWindows()
-
-
-if __name__ == "__main__":
-    main()
