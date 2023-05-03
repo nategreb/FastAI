@@ -9,6 +9,30 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 
+def predict_gender(model, frame):
+    # Extract the face and resize it to the size expected by the gender classifier - 192x192
+    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (192, 192))
+
+    # transform cropped_face to tensor
+    tensor = torch.tensor(cropped_face)
+    # predict gender
+    gender, _, _ = gender_classifier.predict(tensor)
+
+    return gender
+
+
+def predict_emotion(model, frame):
+    # Extract the face and resize it to the size expected by the emotion classifier - 48x48
+    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (48, 48))
+    # Convert face to gray scaled
+    gray_scaled = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2GRAY)
+    tensor = torch.tensor(gray_scaled)
+
+    # prediction emotion
+    emotion, _, _ = emotion_classifier.predict(tensor)
+    return emotion
+
+
 if __name__ == "__main__":
     # Create a VideoCapture object to capture the video from the camera
     cap = cv2.VideoCapture(0)
@@ -21,8 +45,11 @@ if __name__ == "__main__":
     # Initialize the Dlib face detector
     detector = dlib.get_frontal_face_detector()
 
-    # Load the pretrained gender classification model
+    # Load the gender classification model
     gender_classifier = load_learner('./models/trained_gender_resnet26d.pkl')
+
+    # Load the emotion classification model
+    emotion_classifier = load_learner('./models/emotion_detector_convnext_tiny_hnf.pkl')
 
     try:
         # Loop to display the camera feed with face bounding boxes
@@ -40,16 +67,11 @@ if __name__ == "__main__":
                     x, y, width, height = face.left(), face.top(), face.width(), face.height()
                     cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 0, 0), 2)
 
-                    # Extract the face and resize it to the size expected by the gender classifier - 192x192
-                    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (192, 192))
+                    # text to display
+                    text = f'{predict_gender(gender_classifier, frame)}, {predict_emotion(emotion_classifier, frame)}'
 
-                    # transform cropped_face to tensor
-                    tensor = torch.tensor(cropped_face)
-                    # predict gender
-                    gender, _, _ = gender_classifier.predict(tensor)
-
-                    # Display the gender label above the bounding box
-                    cv2.putText(frame, gender, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
+                    # Display the text above the bounding box
+                    cv2.putText(frame, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
 
                 # Display the processed frame
                 cv2.imshow('Camera Feed', frame)
