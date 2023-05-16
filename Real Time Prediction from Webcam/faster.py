@@ -9,28 +9,41 @@ import torchvision.models as models
 import torchvision.transforms as transforms
 
 
-def predict_gender(model, frame):
-    # Extract the face and resize it to the size expected by the gender classifier - 192x192
-    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (192, 192))
+class GenderPrediction:
+    def __init__(self, model_path, img_height, img_width):
+        self.model_path = model_path
+        self.img_height = img_height
+        self.img_width = img_width
+        self.model = load_learner(model_path)
 
-    # transform cropped_face to tensor
-    tensor = torch.tensor(cropped_face)
-    # predict gender
-    gender, _, _ = gender_classifier.predict(tensor)
+    def preprocess_image(self, image):
+        cropped_face = cv2.resize(image, (self.img_height, self.img_width))
+        return torch.tensor(cropped_face)
 
-    return gender
+    def predict(self, image):
+        tensor = self.preprocess_image(image)
+        pred, _, _ = self.model.predict(tensor)
+        return pred
 
 
-def predict_emotion(model, frame):
-    # Extract the face and resize it to the size expected by the emotion classifier - 48x48
-    cropped_face = cv2.resize(frame[y:y + height, x:x + width], (48, 48))
-    # Convert face to gray scaled
-    gray_scaled = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2GRAY)
-    tensor = torch.tensor(gray_scaled)
+class EmotionClassifier:
+    def __init__(self, model_path, img_height, img_width):
+        self.model_path = model_path
+        self.img_height = img_height
+        self.img_width = img_width
+        self.model = load_learner(model_path)
 
-    # prediction emotion
-    emotion, _, _ = emotion_classifier.predict(tensor)
-    return emotion
+    def preprocess_image(self, image):
+        cropped_face = cv2.resize(image, (self.img_height, self.img_width))
+        # Convert face to gray scaled
+        gray_scaled = cv2.cvtColor(cropped_face, cv2.COLOR_BGR2GRAY)
+        tensor = torch.tensor(gray_scaled)
+        return tensor
+
+    def predict(self, img_path):
+        tensor = self.preprocess_image(img_path)
+        pred, _, _ = self.model.predict(tensor)
+        return pred
 
 
 if __name__ == "__main__":
@@ -45,11 +58,11 @@ if __name__ == "__main__":
     # Initialize the Dlib face detector
     detector = dlib.get_frontal_face_detector()
 
-    # Load the gender classification model
-    gender_classifier = load_learner('./models/trained_gender_resnet26d.pkl')
+    # Training was done on RGB images of 192x192
+    gender_classifier = GenderPrediction('./models/trained_gender_resnet26d.pkl', 192, 192)
 
-    # Load the emotion classification model
-    emotion_classifier = load_learner('./models/emotion_detector_convnext_tiny_hnf.pkl')
+    # Training of this model was done on gray-scaled images 48x48
+    emotion_classifier = EmotionClassifier('./models/emotion_detector_convnext_tiny_hnf.pkl', 48, 48)
 
     try:
         # Loop to display the camera feed with face bounding boxes
@@ -67,8 +80,10 @@ if __name__ == "__main__":
                     x, y, width, height = face.left(), face.top(), face.width(), face.height()
                     cv2.rectangle(frame, (x, y), (x + width, y + height), (255, 0, 0), 2)
 
+                    detected_face = frame[y:y + height, x:x + width]
+
                     # text to display
-                    text = f'{predict_gender(gender_classifier, frame)}, {predict_emotion(emotion_classifier, frame)}'
+                    text = f'{gender_classifier.predict(detected_face)}, {emotion_classifier.predict(detected_face)}'
 
                     # Display the text above the bounding box
                     cv2.putText(frame, text, (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.9, (255, 0, 0), 2)
